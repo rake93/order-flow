@@ -43,7 +43,9 @@ const OUT = path.resolve(ROOT, process.env.MF_ARCHIVE_DIR || 'data/archive');
 const CACHE = path.join(OUT, '.cache');
 const MINUTE = 60_000;
 const SESSION_MINUTES = 375;
-const UA = 'Mozilla/5.0 (Order Flow archive reader; +https://github.com/MrChartist/order-flow)';
+// NSE's archive stalls requests whose user agent doesn't look like a browser, so send one.
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+const TIMEOUT = 30_000;
 
 const compact = date => date.replaceAll('-', '');
 const SOURCES = {
@@ -73,7 +75,8 @@ async function download(exch, date) {
   if (fs.existsSync(file)) return fs.readFileSync(file, 'utf8');
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const response = await fetch(SOURCES[exch](date), { headers: { 'User-Agent': UA, Accept: '*/*' } });
+      console.log(`  ${exch} ${date}: downloading${attempt > 1 ? ` (attempt ${attempt})` : ''}…`);
+      const response = await fetch(SOURCES[exch](date), { headers: { 'User-Agent': UA, Accept: '*/*' }, signal: AbortSignal.timeout(TIMEOUT) });
       if (response.status === 404) return null; // a holiday or not published yet
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const text = unzipFirst(Buffer.from(await response.arrayBuffer())).toString('utf8');
